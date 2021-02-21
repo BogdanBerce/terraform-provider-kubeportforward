@@ -163,9 +163,9 @@ func configureContext(ctx context.Context, d *schema.ResourceData) (interface{},
 }
 
 func initializeArguments(d *schema.ResourceData) ([]string, error) {
-	if err := checkConfigurationValid(d); err != nil {
-		return nil, err
-	}
+	// if err := checkConfigurationValid(d); err != nil {
+	// 	return nil, err
+	// }
 
 	args := []string{}
 	hasConfigPath := false
