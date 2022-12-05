@@ -186,7 +186,7 @@ func initializeArguments(d *schema.ResourceData) ([]string, error) {
 		}
 	}
 
-	if hasConfigPath == true {
+	if hasConfigPath {
 		kubectx, ctxOk := d.GetOk("config_context")
 		authInfo, authInfoOk := d.GetOk("config_context_auth_info")
 		cluster, clusterOk := d.GetOk("config_context_cluster")
@@ -205,7 +205,7 @@ func initializeArguments(d *schema.ResourceData) ([]string, error) {
 	}
 
 	// Overriding with static configuration
-	if v, ok := d.GetOk("insecure"); ok && v.(bool) == true {
+	if v, ok := d.GetOk("insecure"); ok && v.(bool) {
 		args = append(args, []string{"--insecure"}...)
 	}
 	if v, ok := d.GetOk("cluster_ca_certificate"); ok && v.(string) != "" {

@@ -95,7 +95,7 @@ func (f *Forwarder) Forward(ctx context.Context, namespace, serviceName string, 
 	// get the pods for the service
 	selector := mapToSelectorStr(svc.Spec.Selector)
 	if selector == "" {
-		return 0, fmt.Errorf("no backing pods for service %s in %s on cluster %s", svc.Name, svc.Namespace, svc.ClusterName)
+		return 0, fmt.Errorf("no backing pods for service %s in %s", svc.Name, svc.Namespace)
 	}
 
 	pods, err := f.clientset.CoreV1().Pods(svc.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
@@ -104,7 +104,7 @@ func (f *Forwarder) Forward(ctx context.Context, namespace, serviceName string, 
 	}
 
 	if len(pods.Items) == 0 {
-		return 0, fmt.Errorf("no pods returned for service %s in %s on cluster %s", svc.Name, svc.Namespace, svc.ClusterName)
+		return 0, fmt.Errorf("no pods returned for service %s in %s", svc.Name, svc.Namespace)
 	}
 
 	for _, pod := range pods.Items {
@@ -121,7 +121,7 @@ func (f *Forwarder) Forward(ctx context.Context, namespace, serviceName string, 
 			podPort := port.TargetPort.String()
 			if _, err := strconv.Atoi(podPort); err != nil {
 				// search a pods containers for the named port
-				if namedPodPort, ok := portSearch(podPort, pod.Spec.Containers); ok == true {
+				if namedPodPort, ok := portSearch(podPort, pod.Spec.Containers); ok {
 					podPort = namedPodPort
 				}
 			}
@@ -134,17 +134,34 @@ func (f *Forwarder) Forward(ctx context.Context, namespace, serviceName string, 
 		}
 
 		// even though the pod was running, no matching port was found
-		if found == false {
+		if !found {
 			continue
 		}
 
 		// create dialer
-		host := strings.TrimPrefix(f.config.Host, "https://")
-		host = strings.TrimPrefix(host, "http://")
-		path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, pod.Name)
+		var host string
+		var path string
+		if strings.HasPrefix(f.config.Host, "https:") || strings.HasPrefix(f.config.Host, "http:") {
+			endpoint, err := url.Parse(f.config.Host)
+			if err != nil {
+				return 0, fmt.Errorf("unable to parse host %s: %s", host, err.Error())
+			}
+			host = endpoint.Host
+			path = endpoint.Path
+			if !strings.HasPrefix(path, "/") {
+				path = fmt.Sprintf("/%s", path)
+			}
+			if !strings.HasSuffix(path, "/") {
+				path = fmt.Sprintf("%s/", path)
+			}
+			path = fmt.Sprintf("%sapi/v1/namespaces/%s/pods/%s/portforward", path, namespace, pod.Name)
+		} else {
+			host = f.config.Host
+			path = fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, pod.Name)
+		}
 
 		serverURL := &url.URL{Scheme: "https", Host: host, Path: path}
-		if f.config.Insecure == true {
+		if f.config.Insecure {
 			serverURL.Scheme = "http"
 		}
 
@@ -264,7 +281,7 @@ func initializeRESTClientConfig(opts *ForwarderOptions) (*restclient.Config, err
 		defaultTLS := hasCA || hasCert || overrides.ClusterInfo.InsecureSkipTLSVerify
 		host, _, err := restclient.DefaultServerURL(*opts.Host, "", apimachineryschema.GroupVersion{}, defaultTLS)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to parse host: %s", err)
+			return nil, fmt.Errorf("failed to parse host: %s", err)
 		}
 
 		overrides.ClusterInfo.Server = host.String()
